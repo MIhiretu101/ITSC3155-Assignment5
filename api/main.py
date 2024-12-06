@@ -1,5 +1,7 @@
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
+from .controllers import resources, recipes, order_details, sandwiches
+
 from fastapi.middleware.cors import CORSMiddleware
 
 from .models import models, schemas
@@ -168,4 +170,4 @@ def update_one_order_detail(order_detail_id: int, order_detail: schemas.OrderDet
     order_detail_db = order_details.read_one(db, order_detail_id=order_detail_id)
     if order_detail_db is None:
         raise HTTPException(status_code=404, detail="Order detail not found")
-    return order_details.update(db=db, order_detail=order_detail, order_detail_id=order
+    return order_details.update(db=db, order_detail=order_detail)

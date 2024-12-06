@@ -1,56 +1,69 @@
 from sqlalchemy.orm import Session
-from fastapi import HTTPException, status, Response
+from fastapi import HTTPException, status, Response, Depends
 from ..models import models, schemas
+from sqlalchemy.exc import SQLAlchemyError
 
-def create(db: Session, sandwich):
-    # Create a new instance of the Sandwich model with the provided data
-    db_sandwich = models.Sandwich(
-        name=sandwich.name,
-        ingredients=sandwich.ingredients,
-        price=sandwich.price
+
+def create(db: Session, request):
+    new_sandwich = models.Sandwich(
+        sandwich_name=request.sandwich_name,
+        price=request.price
     )
-    # Add the new Sandwich object to the database session
-    db.add(db_sandwich)
+    try:
+        db.add(new_sandwich)
+        db.commit()
+        db.refresh(new_sandwich)
+    except SQLAlchemyError as e:
+        error = str(e.__dict__['orig'])
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
 
-    db.commit()
+    return new_sandwich
 
-    db.refresh(db_sandwich)
-
-    return db_sandwich
 
 def read_all(db: Session):
-    # Retrieve all sandwiches from the database
-    return db.query(models.Sandwich).all()
+    try:
+        return db.query(models.Sandwich).all()
+    except SQLAlchemyError as e:
+        error = str(e.__dict__['orig'])
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
 
-def read_one(db: Session, sandwich_id: int):
-    # Retrieve a specific sandwich by ID
-    sandwich = db.query(models.Sandwich).filter(models.Sandwich.id == sandwich_id).first()
-    if sandwich is None:
-        raise HTTPException(status_code=404, detail="Sandwich not found")
+
+def read_one(db: Session, item_id: int):
+    try:
+        sandwich = db.query(models.Sandwich).filter(models.Sandwich.id == item_id).first()
+        if not sandwich:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sandwich not found!")
+    except SQLAlchemyError as e:
+        error = str(e.__dict__['orig'])
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+
     return sandwich
 
-def update(db: Session, sandwich_id: int, sandwich):
-    # Query the database for the specific sandwich to update
-    db_sandwich = db.query(models.Sandwich).filter(models.Sandwich.id == sandwich_id)
-    if not db_sandwich.first():
-        raise HTTPException(status_code=404, detail="Sandwich not found")
-    # Extract the update data from the provided 'sandwich' object
-    update_data = sandwich.model_dump(exclude_unset=True)
-    # Update the database record with the new data
-    db_sandwich.update(update_data, synchronize_session=False)
-    # Commit the changes to the database
-    db.commit()
-    # Return the updated sandwich record
-    return db_sandwich.first()
 
-def delete(db: Session, sandwich_id: int):
-    # Query the database for the specific sandwich to delete
-    db_sandwich = db.query(models.Sandwich).filter(models.Sandwich.id == sandwich_id)
-    if not db_sandwich.first():
-        raise HTTPException(status_code=404, detail="Sandwich not found")
-    # Delete the database record
-    db_sandwich.delete(synchronize_session=False)
-    # Commit the changes to the database
-    db.commit()
-    # Return a response indicating success (204 No Content)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+def update(db: Session, item_id: int, request):
+    try:
+        sandwich = db.query(models.Sandwich).filter(models.Sandwich.id == item_id)
+        if not sandwich.first():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sandwich not found!")
+        update_data = request.dict(exclude_unset=True)
+        sandwich.update(update_data, synchronize_session=False)
+        db.commit()
+    except SQLAlchemyError as e:
+        error = str(e.__dict__['orig'])
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+
+    return sandwich.first()
+
+
+def delete(db: Session, item_id: int):
+    try:
+        sandwich = db.query(models.Sandwich).filter(models.Sandwich.id == item_id)
+        if not sandwich.first():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sandwich not found!")
+        sandwich.delete(synchronize_session=False)
+        db.commit()
+    except SQLAlchemyError as e:
+        error = str(e.__dict__['orig'])
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+
+    return "Sandwich deleted successfully"
